@@ -1,10 +1,12 @@
 <script lang="ts" setup>
 import Main from "./components/Main.vue";
+import MainBoard from "./components/MainBoard.vue";
 </script>
 
 <template>
   <div class="common-layout">
     <Main/>
+    <MainBoard></MainBoard>
   </div>
 </template>
 

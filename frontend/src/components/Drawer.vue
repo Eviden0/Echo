@@ -14,19 +14,8 @@
     <div class="button-group">
       <el-button type="primary" @click="redirectToSignup">跳转到注册页面</el-button>
       <el-button type="primary" @click="redirectToSignin">跳转到登录页面</el-button>
-      <el-button type="primary" @click="toggleIframe">{{ showIframe ? '隐藏' : '显示' }}</el-button>
+      <el-button type="danger" @click="DeleteConfigFile">重置配置信息</el-button>
       <el-button type="primary" @click="handleGenerate">生成用户信息</el-button>
-    </div>
-
-    <div v-if="showIframe" class="iframe-container">
-      <div style="width: 100%; overflow: hidden">
-        <iframe
-            src="http://localhost:9200/"
-            width="107%"
-            height="490"
-            style="border: none;">
-        </iframe>
-      </div>
     </div>
 
     <el-table :data="userData" style="width: 100%" class="user-table">
@@ -60,6 +49,33 @@
         </template>
       </el-table-column>
     </el-table>
+    <div>
+      <el-button @click="fetchUserTunnels" type="primary">获取隧道信息</el-button>
+      <el-table :data="userTunnels" style="width: 100%" class="tunnel-table">
+        <el-table-column prop="id" label="隧道ID"></el-table-column>
+        <el-table-column prop="name" label="名称"></el-table-column>
+        <el-table-column prop="public_url" label="URL"></el-table-column>
+        <el-table-column prop="proto" label="协议"></el-table-column>
+        <el-table-column prop="addr" label="地址"></el-table-column>
+        <el-table-column prop="create_datetime" label="创建时间"></el-table-column>
+        <el-table-column label="操作">
+          <template #default="{ row }">
+            <el-button size="small" type="danger" @click="handleDeleteTunnel(row.id)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+<!--      添加tunnel-->
+      <div class="add-tunnel-form">
+        <el-select v-model="selectedProtocol" placeholder="选择协议">
+          <el-option label="HTTP" value="http"></el-option>
+          <el-option label="TCP" value="tcp"></el-option>
+          <el-option label="FTP" value="ftp"></el-option>
+          <el-option label="TLS" value="tls"></el-option>
+        </el-select>
+        <el-input v-model="tunnelAddress" placeholder="输入地址"></el-input>
+        <el-button type="primary" @click="handleAddTunnel">添加隧道</el-button>
+      </div>
+    </div>
   </el-drawer>
 </template>
 
@@ -67,13 +83,69 @@
 import {h, ref} from 'vue'
 import {ElButton, ElDrawer, ElNotification,ElMessage} from 'element-plus'
 import { CircleCloseFilled } from '@element-plus/icons-vue'
-import {Generate} from "../../wailsjs/go/main/App";
+import {AddTunnel, DeleteConfigFile, DeleteTunnel, Generate, GenerateTunnel} from "../../wailsjs/go/main/App";
+
+const userTunnels = ref([])
+
+
+const loading = ref(false);
+const adding = ref(false);
+const deleting = ref(false);
+//  拿到接口的tunnel信息
+
+const fetchUserTunnels = async () => {
+  loading.value = true;
+  try {
+    const user = await GenerateTunnel();
+    userTunnels.value = user.Tunnels || [];
+  } catch (error) {
+    console.error('Error fetching tunnels:', error);
+    ElMessage.error('获取隧道信息失败');
+  } finally {
+    loading.value = false;
+  }
+};
+// 添加tunnel
+const selectedProtocol = ref('tcp')
+const tunnelAddress = ref('0.0.0.0:9999')
+
+const handleAddTunnel = async () => {
+  if (!tunnelAddress.value) {
+    ElMessage.warning('请输入隧道地址');
+    return;
+  }
+
+  adding.value = true;
+  try {
+    await AddTunnel(tunnelAddress.value, selectedProtocol.value);
+    ElMessage.success('隧道添加成功');
+    await fetchUserTunnels();  // 添加后刷新列表
+  } catch (error) {
+    console.error('Error adding tunnel:', error);
+    ElMessage.error('添加隧道失败');
+  } finally {
+    adding.value = false;
+  }
+};
+
+//  删除对应的隧道
+const handleDeleteTunnel = async (id: string) => {
+  deleting.value = true;
+  try {
+    await DeleteTunnel(id);
+    ElMessage.success('隧道删除成功');
+    await fetchUserTunnels();  // 删除后刷新列表
+  } catch (error) {
+    console.error('Error deleting tunnel:', error);
+    ElMessage.error('删除隧道失败');
+  } finally {
+    deleting.value = false;
+  }
+};
+
+
 
 const visible = ref(false)
-const showIframe = ref(false);
-const toggleIframe = () => {
-  showIframe.value = !showIframe.value;
-};
 const redirectToSignup = () => {
   ElNotification({
     title: '通知',
@@ -140,5 +212,13 @@ const deleteUser = (index) => {
 .close-button {
   margin-left: 10px; /* Close按钮与标题的间距 */
 }
+.tunnel-table {
+  margin-top: 20px;
+}
 
+.add-tunnel-form {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
 </style>

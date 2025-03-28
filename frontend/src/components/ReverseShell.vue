@@ -1,9 +1,14 @@
 <template>
-  <h2>当前监听0.0.0.0:9999 给我弹!!!</h2>
-  <el-button @click="start"  type="primary">点我启动</el-button>
-  <el-button @click="toggleTerminal" type="info">隐藏/显示 终端</el-button>
-  <h1> 当前id: {{session}}</h1>
+  <div class="monitor-container">
+    <h2 class="monitor-title">当前监听 0.0.0.0:9999 给我弹 !!!</h2>
+    <div class="buttons">
+      <el-button @click="start" type="primary" class="btn-start">点我启动</el-button>
+      <el-button @click="toggleTerminal" type="info" class="btn-toggle">隐藏/显示 终端</el-button>
+    </div>
+    <h1 class="session-id">当前id: {{ session }}</h1>
+  </div>
   <div ref="terminal" id="terminal" :style="{ display: terminalVisible ? 'block' : 'none' }"></div>
+
 </template>
 
 <script setup>
@@ -22,7 +27,7 @@ const inputBuffer = ref('')  // 当前输入行
 const session = ref("")//sessionID
 const terminalVisible = ref(true) // 控制终端可见性
 let intervalId = null
-
+let RemoteAdd=ref('')
 // 切换终端可见性
 function toggleTerminal() {
   terminalVisible.value = !terminalVisible.value
@@ -133,5 +138,29 @@ onBeforeUnmount(() => {
 #terminal {
   width: 100%;
   height: 100%;
+}
+.monitor-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.monitor-title {
+  font-size: 1.5rem;
+  color: #409eff;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.buttons {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.session-id {
+  font-size: 1.2rem;
+  color: #606266;
 }
 </style>

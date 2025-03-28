@@ -1,22 +1,13 @@
 <script lang="ts" setup>
-import { h, ref } from 'vue';
 import ReverseShell from "./ReverseShell.vue";
-
-const input = ref('');
-const visible = ref(false);
-const ShowShellTool = ref(false);
-
-
-const toggleShowShellTool = () => {
-  ShowShellTool.value = !ShowShellTool.value;
-};
-
+import Drawer from "./Drawer.vue";
 </script>
 
 <template>
+  <Drawer></Drawer>
  <ReverseShell></ReverseShell>
+
 </template>
 
 <style>
-/* Add any styles here */
 </style>
