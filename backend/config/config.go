@@ -2,11 +2,12 @@ package config
 
 // 变量
 var (
-	Email    = "rEZKqtJj@gmail.com"
-	Password = "rEZKqtJj"
+	Email    = "IwDhFbhl@gmail.com"
+	Password = "123456789"
 )
 
 // 常量
 const (
-	IsDebug = true
+	IsDebug  = false
+	ProxyUrl = "http://localhost:8000/"
 )
