@@ -190,6 +190,34 @@ func handleWSConnection(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
-
 	wg.Wait()
 }
+
+//func (s *Session) Stop() {
+//	s.Lock()
+//	defer s.Unlock()
+//
+//	// Close the TCP connection
+//	if s.TCPConn != nil {
+//		s.TCPConn.Close()
+//		s.TCPConn = nil
+//	}
+//
+//	// Close the WebSocket connection
+//	if s.WSConn != nil {
+//		s.WSConn.Close()
+//		s.WSConn = nil
+//	}
+//
+//	// Close all channels
+//	close(s.CloseChan)
+//	close(s.FromWSChan)
+//	close(s.FromTCPChan)
+//
+//	// Reset channels
+//	s.FromWSChan = make(chan []byte, bufSize)
+//	s.FromTCPChan = make(chan []byte, bufSize)
+//	s.CloseChan = make(chan struct{})
+//
+//	log.Printf("Session stopped: %s", s.ID)
+//}

@@ -29,3 +29,7 @@ export function GetId() {
 export function Start() {
   return window['go']['main']['App']['Start']();
 }
+
+export function Stop() {
+  return window['go']['main']['App']['Stop']();
+}

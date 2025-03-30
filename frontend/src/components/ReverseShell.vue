@@ -64,7 +64,11 @@ const initTerm = () => {
     cols: 80,
     convertEol: true,
     cursorBlink: true,
+    rightClickSelectsWord: true,
     cursorStyle: 'block',
+    fontFamily: '"Cascadia Code", Menlo, monospace',
+    screenKeys: true,
+    useStyle: true,
     theme: {
       foreground: '#ECECEC',
       background: '#000000',

@@ -16,3 +16,5 @@ export function GenerateTunnel():Promise<cpolar.User>;
 export function GetId():Promise<string>;
 
 export function Start():Promise<void>;
+
+export function Stop():Promise<void>;
