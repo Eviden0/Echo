@@ -86,7 +86,7 @@ func (a *App) GetId() string {
 var user *cpolar.User
 
 func init() {
-	user = cpolar.Run()
+	//user = cpolar.Run()
 }
 func (a *App) GenerateTunnel() *cpolar.User {
 	return cpolar.Run()
@@ -98,4 +98,8 @@ func (a *App) DeleteTunnel(id string) {
 func (a *App) AddTunnel(port string, proto string) {
 	user.Add(port, proto)
 	user.Watch()
+}
+
+func (a *App) Stop() {
+
 }
