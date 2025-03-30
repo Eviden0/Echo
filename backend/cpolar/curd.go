@@ -33,7 +33,7 @@ type Tunnel struct {
 func NewUser() *User {
 	var client *http.Client
 	if config.IsDebug {
-		proxyURL, _ := url.Parse("http://localhost:8083/")
+		proxyURL, _ := url.Parse(config.ProxyUrl)
 		client = &http.Client{
 			Transport: &http.Transport{
 				Proxy: http.ProxyURL(proxyURL),
