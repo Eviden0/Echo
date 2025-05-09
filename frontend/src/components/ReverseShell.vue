@@ -1,22 +1,25 @@
 <template>
   <div class="monitor-container">
     <h2 class="monitor-title">当前监听 0.0.0.0:9999 给我弹 !!!</h2>
-    <div class="buttons">
+    <div class="input-row">
+<!--      <el-input v-model="session" placeholder="请输入 Session ID" class="session-input" />-->
       <el-button @click="start" type="primary" class="btn-start">点我启动</el-button>
-      <el-button @click="toggleTerminal" type="info" class="btn-toggle">隐藏/显示 终端</el-button>
+      <el-button @click="toggleTerminal" type="info" class="btn-toggle">隐藏/显示终端</el-button>
+      <el-button @click="closeShell" type="danger" class="btn-start">断开</el-button>
     </div>
-    <h1 class="session-id">当前id: {{ session }}</h1>
+    <h1 class="session-id">当前 ID: {{ session }}</h1>
+    <div ref="terminal" id="terminal" :style="{ display: terminalVisible ? 'block' : 'none' }"></div>
   </div>
-  <div ref="terminal" id="terminal" :style="{ display: terminalVisible ? 'block' : 'none' }"></div>
-
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
-import {GetId, Start} from "../../wailsjs/go/main/App.js";
+import {Callgologger, CloseCon, GetId, Start} from "../../wailsjs/go/main/App.js";
+import {EventsOn} from "../../wailsjs/runtime/runtime.js";
+import {LogInfo} from "../store/interface";
 
 
 const terminal = ref(null)
@@ -27,34 +30,94 @@ const inputBuffer = ref('')  // 当前输入行
 const session = ref("")//sessionID
 const terminalVisible = ref(true) // 控制终端可见性
 let intervalId = null
-let RemoteAdd=ref('')
+
+  // 断开连接并清空终端
+function closeShell() {
+    if (!session.value) {
+      alert("Session ID 为空，无法关闭连接！")
+      return
+    }
+
+    {
+      // 发送 GET 请求到后端，通知关闭当前 session
+      const response =  fetch(`http://127.0.0.1:8080/close?session=${session.value}`, {
+        method: 'GET',  // 使用 GET 请求关闭 session
+      })
+      .then((response) => {
+        if (response.ok) {
+          console.log("关闭连接成功")
+        } else {
+          console.error("关闭连接失败")
+        }
+      })
+
+      Callgologger("info","关闭连接"+session.value)
+
+      // 清空 xterm 面板
+      term.value.write('\x1b[2J\x1b[0f');  // 清屏 + 光标复位（不依赖缓冲区）
+      term.value.clear()
+      term.value.reset()
+      // 关闭 WebSocket 连接
+      socket.value?.close()
+
+      // 清空输入缓存
+      inputBuffer.value = ''
+      session.value = ''  // 清空 session ID
+      socket.value = null  // 确保断开后 socket 重置为 null
+
+    }
+  }
+  //TODO 前端写个日志系统,进行展示,现在先在控制台打印
+  EventsOn("gologger", (log: LogInfo) => {
+    console.log(log.Level, log.Msg);
+  });
+
+
+
+
 // 切换终端可见性
 function toggleTerminal() {
   terminalVisible.value = !terminalVisible.value
 }
 
-// 得到sessionID
+// 启动监听
 Start()
 function start(){
+  // 如果已存在连接且连接未关闭，则不再重新初始化 WebSocket
+  if (socket.value && socket.value.readyState === WebSocket.OPEN) {
+    console.log("WebSocket 已经连接，无需重新连接")
+    return
+  }
+  Callgologger("info","启动websocket")
   GetId().then((id)=>{
     session.value=id
+    initWebSocket()  // 启动新的 WebSocket 连接
   })
-  initWebSocket()
-  // initTerm()
+
+
+
+
 }
 // 初始化 WebSocket
 const initWebSocket = () => {
+  // 确保只有当 socket 为 null 时才初始化新的 WebSocket
+  if (socket.value) {
+    console.log("已经存在 WebSocket 连接")
+    return
+  }
+  GetId().then((id)=>{
+    session.value=id
+  })
   //  拿到后端传来的session
   socket.value = new WebSocket(`ws://127.0.0.1:8080/ws?session=`+session.value)
-  socket.value.onopen = () => console.log("WebSocket open")
 
-  socket.value.onmessage = (event) => {
-    term.value.write(event.data)
+  socket.value.onopen = () => Callgologger("info","收到sessionID: "+session.value)
+  socket.value.onmessage = (event) => term.value?.write(event.data)
+  socket.value.onclose = () => {
+    Callgologger("info",session.value+" 已关闭")
+    socket.value = null  // 确保 WebSocket 关闭后重置为 null
   }
-
-  socket.value.onclose = () => console.log("WebSocket close")
-
-  socket.value.onerror = (error) => console.log("WebSocket error:", error)
+  socket.value.onerror = (error) => Callgologger("info","WebSocket 错误:"+error)
 }
 
 // 初始化 Terminal
@@ -77,7 +140,7 @@ const initTerm = () => {
     },
   })
 
-  term.value.open(document.getElementById('terminal'))
+  term.value.open(document.getElementById('terminal')!)
   term.value.loadAddon(fitAddon)
   setTimeout(() => fitAddon.fit(), 5)
   term.value.focus()
@@ -117,32 +180,25 @@ const closeSocketAndTerm = () => {
 }
 
 onMounted(() => {
-  // initWebSocket()
   initTerm()
-  intervalId = setInterval(() => {
-    GetId().then((id) => {
-      if (id ==="") {
-      session.value="等待连接中..."
-      }else {
-        session.value=id
-      }
-    })
-  }, 1000)
 })
 
 onBeforeUnmount(() => {
-  closeSocketAndTerm()
-  if (intervalId) {
-    clearInterval(intervalId)
-  }
+  socket.value?.close()
+  term.value?.dispose()
 })
 </script>
 
-<style  scoped>
+<style scoped>
 #terminal {
   width: 100%;
   height: 100%;
+  min-height: 400px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background-color: #000;
 }
+
 .monitor-container {
   display: flex;
   flex-direction: column;
@@ -157,10 +213,15 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.buttons {
+.input-row {
   display: flex;
-  gap: 15px;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 20px;
+}
+
+.session-input {
+  width: 300px;
 }
 
 .session-id {

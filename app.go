@@ -3,6 +3,7 @@ package main
 import (
 	"Ybridge/backend/config"
 	"Ybridge/backend/cpolar"
+	gologger "Ybridge/backend/logger"
 	"Ybridge/backend/reverse"
 	"context"
 	"fmt"
@@ -100,6 +101,20 @@ func (a *App) AddTunnel(port string, proto string) {
 	user.Watch()
 }
 
-func (a *App) Stop() {
-
+func (a *App) CloseCon(sessionID string) {
+	reverse.CloseConnByID(sessionID)
+}
+func (a *App) Callgologger(level, msg string) {
+	switch level {
+	case "info":
+		gologger.Info(a.ctx, msg)
+	case "warning":
+		gologger.Warning(a.ctx, msg)
+	case "error":
+		gologger.Error(a.ctx, msg)
+	case "success":
+		gologger.Success(a.ctx, msg)
+	default:
+		gologger.Debug(a.ctx, msg)
+	}
 }

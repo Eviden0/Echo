@@ -5,6 +5,10 @@ import {cpolar} from '../models';
 
 export function AddTunnel(arg1:string,arg2:string):Promise<void>;
 
+export function Callgologger(arg1:string,arg2:string):Promise<void>;
+
+export function CloseCon(arg1:string):Promise<void>;
+
 export function DeleteConfigFile():Promise<void>;
 
 export function DeleteTunnel(arg1:string):Promise<void>;
@@ -16,5 +20,3 @@ export function GenerateTunnel():Promise<cpolar.User>;
 export function GetId():Promise<string>;
 
 export function Start():Promise<void>;
-
-export function Stop():Promise<void>;

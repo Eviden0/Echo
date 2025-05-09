@@ -6,6 +6,14 @@ export function AddTunnel(arg1, arg2) {
   return window['go']['main']['App']['AddTunnel'](arg1, arg2);
 }
 
+export function Callgologger(arg1, arg2) {
+  return window['go']['main']['App']['Callgologger'](arg1, arg2);
+}
+
+export function CloseCon(arg1) {
+  return window['go']['main']['App']['CloseCon'](arg1);
+}
+
 export function DeleteConfigFile() {
   return window['go']['main']['App']['DeleteConfigFile']();
 }
@@ -28,8 +36,4 @@ export function GetId() {
 
 export function Start() {
   return window['go']['main']['App']['Start']();
-}
-
-export function Stop() {
-  return window['go']['main']['App']['Stop']();
 }

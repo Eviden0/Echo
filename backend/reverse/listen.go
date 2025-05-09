@@ -11,12 +11,12 @@ import (
 )
 
 const (
-	tcpPort  = ":9999"
-	wsPort   = ":8080"
-	bufSize  = 4096
-	maxConns = 100
+	tcpPort = ":9999"
+	wsPort  = ":8080"
+	bufSize = 4096
 )
 
+// 升级 http 到 websocket 协议
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
@@ -45,6 +45,7 @@ func GetId() string {
 }
 func initWSServer() {
 	http.HandleFunc("/ws", handleWSConnection)
+	http.HandleFunc("/close", handleCloseRequest) // 可选：通过 HTTP 关闭 session
 	log.Printf("WebSocket listening on %s", wsPort)
 	if err := http.ListenAndServe(wsPort, nil); err != nil {
 		log.Fatalf("WebSocket server failed: %v", err)
@@ -83,13 +84,13 @@ func handleTCPConnection(tcpConn net.Conn) {
 	sessions.Store(sessionID, session)
 
 	log.Printf("New TCP session: %s", sessionID)
+	tcpConn.Write([]byte("clear\n"))
 
 	tcpConn.Write([]byte("/usr/bin/script -qc /bin/bash /dev/null\n"))
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// 从TCP读取数据转发到WebSocket
 	go func() {
 		defer wg.Done()
 		reader := bufio.NewReader(tcpConn)
@@ -101,7 +102,12 @@ func handleTCPConnection(tcpConn net.Conn) {
 				data := make([]byte, bufSize)
 				n, err := reader.Read(data)
 				if err != nil {
-					close(session.CloseChan)
+					//  优化了关闭conn的逻辑,fixed panic close closed chan
+					select {
+					case <-session.CloseChan:
+					default:
+						close(session.CloseChan)
+					}
 					return
 				}
 				session.FromTCPChan <- bytes.TrimSpace(data[:n])
@@ -109,14 +115,17 @@ func handleTCPConnection(tcpConn net.Conn) {
 		}
 	}()
 
-	// 从WebSocket通道写数据到TCP
 	go func() {
 		defer wg.Done()
 		for {
 			select {
 			case data := <-session.FromWSChan:
 				if _, err := tcpConn.Write(append(data, '\n')); err != nil {
-					close(session.CloseChan)
+					select {
+					case <-session.CloseChan:
+					default:
+						close(session.CloseChan)
+					}
 					return
 				}
 			case <-session.CloseChan:
@@ -138,10 +147,7 @@ func handleWSConnection(w http.ResponseWriter, r *http.Request) {
 	}
 	defer wsConn.Close()
 
-	sessionID := r.URL.Query().Get("session") //对应相应的id
-	/*
-		后面改成将这一串发送给前端然后再启动前端
-	*/
+	sessionID := r.URL.Query().Get("session")
 	if sessionID == "" {
 		log.Println("Missing session ID")
 		return
@@ -162,27 +168,28 @@ func handleWSConnection(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// 从WebSocket读取指令
 	go func() {
 		defer wg.Done()
 		for {
 			_, msg, err := wsConn.ReadMessage()
 			if err != nil {
-				//close(session.CloseChan)
 				return
 			}
 			session.FromWSChan <- bytes.TrimSpace(msg)
 		}
 	}()
 
-	// 向WebSocket发送TCP响应
 	go func() {
 		defer wg.Done()
 		for {
 			select {
 			case data := <-session.FromTCPChan:
 				if err := wsConn.WriteMessage(websocket.TextMessage, data); err != nil {
-					close(session.CloseChan)
+					select {
+					case <-session.CloseChan:
+					default:
+						close(session.CloseChan)
+					}
 					return
 				}
 			case <-session.CloseChan:
@@ -190,34 +197,57 @@ func handleWSConnection(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+
 	wg.Wait()
 }
 
-//func (s *Session) Stop() {
-//	s.Lock()
-//	defer s.Unlock()
-//
-//	// Close the TCP connection
-//	if s.TCPConn != nil {
-//		s.TCPConn.Close()
-//		s.TCPConn = nil
-//	}
-//
-//	// Close the WebSocket connection
-//	if s.WSConn != nil {
-//		s.WSConn.Close()
-//		s.WSConn = nil
-//	}
-//
-//	// Close all channels
-//	close(s.CloseChan)
-//	close(s.FromWSChan)
-//	close(s.FromTCPChan)
-//
-//	// Reset channels
-//	s.FromWSChan = make(chan []byte, bufSize)
-//	s.FromTCPChan = make(chan []byte, bufSize)
-//	s.CloseChan = make(chan struct{})
-//
-//	log.Printf("Session stopped: %s", s.ID)
-//}
+// 防止重复关闭资源
+func closeSession(session *Session) {
+	session.Lock()
+	defer session.Unlock()
+
+	select {
+	case <-session.CloseChan:
+		return
+	default:
+		close(session.CloseChan)
+	}
+
+	if session.TCPConn != nil {
+		_ = session.TCPConn.Close()
+		session.TCPConn = nil
+	}
+
+	if session.WSConn != nil {
+		_ = session.WSConn.Close()
+		session.WSConn = nil
+	}
+
+	sessions.Delete(session.ID)
+	log.Printf("Session %s closed", session.ID)
+}
+
+// ✅ 外部通过 ID 主动关闭
+func CloseConnByID(sessionID string) {
+	val, ok := sessions.Load(sessionID)
+	if !ok {
+		log.Printf("[GracefulExit] No session found with ID %s", sessionID)
+		return
+	}
+	session := val.(*Session)
+	log.Printf("[GracefulExit] Gracefully closing session %s", sessionID)
+	closeSession(session)
+}
+
+// 提供一个restful接口来关闭session,eg: http://localhost:8080/close?session=SessionID
+func handleCloseRequest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*") // 允许所有来源
+
+	sessionID := r.URL.Query().Get("session")
+	if sessionID == "" {
+		http.Error(w, "Missing session ID", http.StatusBadRequest)
+		return
+	}
+	CloseConnByID(sessionID)
+	w.Write([]byte("Session closed: " + sessionID))
+}
